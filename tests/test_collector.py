@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import json
+from pathlib import Path
 from urllib.error import URLError
 
 import pytest
@@ -90,3 +91,16 @@ def test_missing_serial_fails_closed():
             return 200, {}
     with pytest.raises(CollectionError, match="serial"):
         identify(Client())
+
+
+def test_default_config_path_is_application_specific(monkeypatch):
+    import telemetry.collect_prusa as collector
+    seen = []
+
+    def stop_before_network(path):
+        seen.append(path)
+        raise CollectionError("Synthetic configuration stop")
+
+    monkeypatch.setattr(collector, "load_config", stop_before_network)
+    assert collector.main(["--once"]) == 1
+    assert seen == [Path.home() / ".config/printer-telemetry/prusalink.env"]

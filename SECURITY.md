@@ -27,7 +27,7 @@ prevent `git add -f`, and cannot recognize every secret pasted into an ordinary 
    matching values**:
    ```bash
    .venv/bin/python -m scripts.check_publication \
-     --private-config ~/.config/lakeshore/prusalink.env --private-data data/real
+     --private-config ~/.config/printer-telemetry/prusalink.env --private-data data/real
    ```
    The optional inputs are read locally, never copied into the public Git tree or a finding message.
 4. Run a full secret scanner over staged changes and committed history. The initial public release was

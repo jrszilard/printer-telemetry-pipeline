@@ -76,7 +76,7 @@ committed disposable parser staging fixed intermediate-state retention, while a 
 updates warehouse rows/manifest/models together. The largest successful run spilled to disk. The original
 **23 pipeline tests passed**, including failed-stage/transaction rollback, interrupted-export recovery,
 late-data partition replacement, parser replay, UTC/units, and privacy checks. The public release adds
-48 publication-safety regressions: **71 tests pass** in the combined suite.
+48 publication-safety regressions plus a generic-config-default check: **72 tests pass** in the combined suite.
 
 **Real data:** one read-only Prusa Core One idle snapshot was captured and processed separately. No real
 completed print, success label, or fleet-wide hardware finding has been observed. No printer upload or

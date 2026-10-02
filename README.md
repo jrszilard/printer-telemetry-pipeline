@@ -74,7 +74,8 @@ The collector **only makes GET requests** to four allowlisted PrusaLink endpoint
 start, stop, or configuration operations. Serial numbers are hashed before storage. Other response
 content is preserved except serial/credential fields. Raw job filenames may still be private.
 
-Keep credentials outside the repo, in `~/.config/lakeshore/prusalink.env` (HTTP digest authentication):
+Keep credentials outside the repo, in `~/.config/printer-telemetry/prusalink.env` (HTTP digest authentication).
+Use `--config /path/to/prusalink.env` for another location, or set the environment variables below:
 
 ```dotenv
 PRUSALINK=your-printer.lan

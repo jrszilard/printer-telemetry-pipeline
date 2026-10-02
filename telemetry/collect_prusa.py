@@ -145,7 +145,7 @@ def collect_once(client: PrusaClient, device: dict, landing: Path, now=None) -> 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=Path.home() / ".config/lakeshore/prusalink.env")
+    parser.add_argument("--config", type=Path, default=Path.home() / ".config/printer-telemetry/prusalink.env")
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--interval", type=float, default=5, help="Seconds between polls (minimum 1)")
     parser.add_argument("--samples", type=int, default=0, help="Stop after N successful samples; 0 = until Ctrl-C")
