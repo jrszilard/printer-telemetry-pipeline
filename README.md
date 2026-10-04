@@ -57,6 +57,28 @@ A **deliberately planted synthetic effect** raises PETG failures on firmware 3.1
 Failure rates divide by success/failure-labelled jobs, not by unknown or missing-end jobs. This is an
 analysis demonstration, not a finding about Prusa or Formlabs hardware.
 
+## Semantic definitions
+
+`telemetry/definitions/print_jobs.toml` defines what each print-job field and metric means, written for
+people and for AI assistants: plain descriptions, allowed values, synonyms, caveats, an owner, and example
+questions. `telemetry/semantic.py` turns those definitions into SQL, so only defined fields can be queried,
+every query needs a time range, and ratios are recomputed from their counts for each slice instead of
+averaged. Tests check the definitions against the built tables and the example question against
+`failure_rates`.
+
+```bash
+.venv/bin/python - <<'PY'
+from datetime import datetime, timezone
+import duckdb
+from telemetry.semantic import compile_query, load
+sql, parameters = compile_query(load(), ["labelled_prints", "failure_rate"], ["firmware"],
+                                {"model": "C", "material": "PETG"},
+                                datetime(2000, 1, 1, tzinfo=timezone.utc), datetime(2100, 1, 1, tzinfo=timezone.utc))
+with duckdb.connect('data/demo/state.duckdb', read_only=True) as db:
+    print(db.execute(sql, parameters).fetchall())
+PY
+```
+
 | Output | Contents |
 |---|---|
 | `data/demo/landing/` | Retained raw files, partitioned by receipt date and source |

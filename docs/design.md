@@ -67,6 +67,7 @@ finishes. Raw retention is the recovery source.
 | Dedupe + touched partitions | Stable event ids; `MERGE`/partition replacement; retry-safe orchestrated backfills |
 | SQL model rebuilds | dbt/scheduled models; incremental job state plus bounded late-data reconciliation |
 | `quality.json` | Coverage, freshness, uniqueness, completeness, drift, and label-availability alerts |
+| `telemetry/definitions/*.toml` | Semantic layer (for example LookML): one owned definition per metric, descriptions and synonyms for people and AI tools, required time filters |
 
 **Deliberate limits:** single machine; state database duplicates exported data; local metadata fast path,
 not adversarial file integrity; no cloud deployment/scheduler; no live metrics-stream support; no production

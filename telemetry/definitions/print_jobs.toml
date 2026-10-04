@@ -1,0 +1,70 @@
+# Semantic definitions for print jobs: what each field and metric means, written for people
+# and for AI assistants. telemetry/semantic.py turns these definitions into SQL, so only
+# defined fields can be queried. Tests check them against the built tables.
+
+[entity]
+name = "print_job"
+table = "fact_print_job"
+grain = "One row per printer per print."
+key = ["device_id", "job_id"]
+time_sql = "coalesce(start_ts, first_observed_ts)"
+time_description = "When the print started, in UTC. If the start event never arrived, the first reading from the print."
+required_filter = "A time range. Queries without one are refused, which keeps scans bounded."
+
+[dimensions.model]
+column = "model"
+description = "Printer model (generation) that ran the print."
+
+[dimensions.firmware]
+column = "firmware"
+description = "Firmware the printer was running when this print started. Not the printer's current firmware, which is dim_printer.current_firmware."
+
+[dimensions.material]
+column = "material"
+description = "Material loaded for the print, for example PETG."
+
+[dimensions.outcome]
+column = "outcome"
+description = "Result reported at the end of the print."
+values.success = "The printer reported a successful print."
+values.failure = "The printer reported a failed print."
+values.unknown = "The print ended, but no result was reported."
+values.no_end_event = "No end of print has been received yet. It may still arrive."
+
+[metrics.prints]
+description = "All prints, whatever their result."
+sql = "count(*)"
+
+[metrics.labelled_prints]
+description = "Prints that ended with a success or failure result."
+sql = "count(*) FILTER (WHERE outcome IN ('success', 'failure'))"
+
+[metrics.failed_prints]
+description = "Prints that ended with a failure result."
+sql = "count(*) FILTER (WHERE outcome = 'failure')"
+
+[metrics.unlabelled_prints]
+description = "Prints with an unknown result or no end event. Shown beside rates and never counted as success."
+sql = "count(*) FILTER (WHERE outcome IN ('unknown', 'no_end_event'))"
+
+[metrics.failure_rate]
+label = "Print failure rate"
+certified = true
+owner = "Data team"
+description = "Failed prints as a share of prints with a recorded result. Unknown and unfinished prints are left out of the denominator."
+ratio = ["failed_prints", "labelled_prints"]
+synonyms = ["fail rate", "print failures", "failure %", "success rate (1 minus this)"]
+always_show_with = ["labelled_prints", "unlabelled_prints"]
+caveats = [
+  "Only connected printers whose owners consent are included.",
+  "The last 3 days are provisional; late uploads can change them.",
+]
+do_not = ["Average failure_rate across groups. Recompute it from the counts, as this definition does."]
+
+[[metrics.failure_rate.examples]]
+question = "Which firmware has the highest PETG failure rate on model C?"
+group_by = ["firmware"]
+where = { model = "C", material = "PETG" }
+
+# Printer-level metrics such as active printers and reporting coverage belong to a printer
+# entity. Reporting coverage also needs installed printers from Salesforce; neither is in this demo.
