@@ -23,6 +23,11 @@ Seeded fleet ─┘                                      └──► parsed / e
 - **Parsed:** one accepted line, retaining source, firmware, raw timestamp, unit, parser version, file, and
   line number. SQL uses `read_text` → line splitting → regex/JSON extraction. Unknown, truncated, invalid-time,
   missing-key, or invalid-temperature lines go to quarantine. Coverage excludes headers and blank lines.
+- **Quarantine:** each rejected line keeps its device and firmware, taken from the line, the Gen A upload
+  header, or the readable lines of the same upload, with `firmware_source` saying which (or `unknown`). The
+  quality report's `rejects_by_firmware` gives reject rates per source and firmware and lists
+  `format_change_suspects`: a rejection reason produced by only one firmware of a source that has several,
+  the signature of a release that changed the format. It is a heuristic for review and never blocks a load.
 - **Clean:** one event identity. Status identity is `(device, kind, raw timestamp, state, job)`; lifecycle
   identity is `(device, kind, raw timestamp, job)`. SHA-256 encodes an unambiguous tuple. Earliest receipt
   wins, then path/line break ties. Temperature conversion requires an explicit unit (legacy default is °C).

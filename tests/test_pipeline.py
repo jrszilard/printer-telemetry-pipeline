@@ -251,3 +251,33 @@ def test_planted_failure_effect_is_visible_with_honest_denominator(tmp_path):
     assert before[1] >= 50 and after[1] >= 50
     assert .13 < after[2] < .35
     assert after[2] > before[2] + .07
+
+
+def test_rejected_lines_carry_firmware_and_flag_a_format_change(small_fleet):
+    report = json.loads((small_fleet / "quality.json").read_text())["rejects_by_firmware"]
+    suspects = {(row["source"], row["firmware"], row["reason"]) for row in report["format_change_suspects"]}
+    assert ("genC", "3.1.0", "unsupported_kind") in suspects
+    assert query(small_fleet, "SELECT DISTINCT firmware, firmware_source FROM unparsed "
+                              "WHERE source = 'genC' AND reason = 'unsupported_kind'") == [("3.1.0", "line")]
+    versions = {(row["source"], row["firmware"]): row for row in report["by_version"]}
+    assert "unsupported_kind" not in versions[("genC", "3.0.1")]["reasons"]
+    assert versions[("genC", "3.1.0")]["reject_rate"] > 0
+
+
+def test_parser_upgrade_clears_the_format_change_suspect(small_fleet):
+    run_pipeline(small_fleet, parser_version=2, reprocess=True, batch_files=20)
+    report = json.loads((small_fleet / "quality.json").read_text())["rejects_by_firmware"]
+    assert not [row for row in report["format_change_suspects"]
+                if row["source"] == "genC" and row["reason"] == "unsupported_kind"]
+
+
+def test_broken_line_borrows_firmware_from_its_upload(tmp_path):
+    received = datetime(2026, 9, 28, 12, tzinfo=UTC)
+    good = json.dumps(b_event(received - timedelta(minutes=5), "status", bed_temp=60, nozzle_temp=215,
+                              temp_unit="C", state="PRINTING"))
+    upload(tmp_path, "genB", received, good + "\n" + good[:-15] + "\n")
+    upload(tmp_path, "genB", received, '{"t": 1, "dev": "test-b", "k": "sta\n', suffix="-broken")
+    run_pipeline(tmp_path)
+    assert query(tmp_path, "SELECT path LIKE '%-broken%', device_id, firmware, firmware_source "
+                           "FROM unparsed ORDER BY 1") == [(False, "test-b", "2.2.0", "same_upload"),
+                                                           (True, None, None, "unknown")]

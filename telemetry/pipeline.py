@@ -73,11 +73,16 @@ def initialize(connection):
         INSERT INTO pipeline_meta VALUES ('exports_dirty', 'false') ON CONFLICT DO NOTHING;
     """)
     connection.execute(f"CREATE TABLE IF NOT EXISTS parsed_events ({TABLE_SCHEMA})")
+    # Databases created before rejected lines carried firmware gain the columns; --reprocess fills them.
     connection.execute("""
         CREATE TABLE IF NOT EXISTS unparsed (
           path VARCHAR, line_number BIGINT, parser_version INTEGER, source VARCHAR,
-          received_at TIMESTAMPTZ, line VARCHAR, reason VARCHAR
+          received_at TIMESTAMPTZ, line VARCHAR, reason VARCHAR,
+          device_id VARCHAR, firmware VARCHAR, firmware_source VARCHAR
         );
+        ALTER TABLE unparsed ADD COLUMN IF NOT EXISTS device_id VARCHAR;
+        ALTER TABLE unparsed ADD COLUMN IF NOT EXISTS firmware VARCHAR;
+        ALTER TABLE unparsed ADD COLUMN IF NOT EXISTS firmware_source VARCHAR;
         CREATE OR REPLACE TEMP VIEW canonical_events AS SELECT * FROM parsed_events WHERE false;
     """)
     connection.execute(f"CREATE TABLE IF NOT EXISTS clean_events AS {CLEAN_SELECT}")
@@ -136,6 +141,39 @@ def export_models(connection, data_dir: Path):
     temporary.replace(target)
 
 
+def rejects_by_firmware(connection) -> dict:
+    """Reject rates per source and firmware, and reasons that only one firmware of a source produces."""
+    accepted = {(row["source"], row["firmware"]): row["lines"] for row in records(connection, """
+      SELECT source, coalesce(firmware, 'unknown') AS firmware, count(*) AS lines
+      FROM parsed_events GROUP BY ALL
+    """)}
+    versions = {key: {"source": key[0], "firmware": key[1], "accepted": lines, "rejected": 0, "reasons": {}}
+                for key, lines in accepted.items()}
+    for row in records(connection, """
+      SELECT source, coalesce(firmware, 'unknown') AS firmware, reason, count(*) AS lines
+      FROM unparsed GROUP BY ALL ORDER BY ALL
+    """):
+        key = (row["source"], row["firmware"])
+        entry = versions.setdefault(key, {"source": key[0], "firmware": key[1], "accepted": 0,
+                                          "rejected": 0, "reasons": {}})
+        entry["rejected"] += row["lines"]
+        entry["reasons"][row["reason"]] = row["lines"]
+    for entry in versions.values():
+        entry["reject_rate"] = entry["rejected"] / (entry["accepted"] + entry["rejected"])
+    # A reason produced by exactly one firmware of a source that has several is the signature of a
+    # release that changed the format. A heuristic, so it is reported for review and never blocks.
+    known = [entry for entry in versions.values() if entry["firmware"] != "unknown"]
+    suspects = []
+    for entry in known:
+        siblings = [other for other in known if other["source"] == entry["source"] and other is not entry]
+        if siblings:
+            suspects += [{"source": entry["source"], "firmware": entry["firmware"], "reason": reason, "lines": lines}
+                         for reason, lines in entry["reasons"].items()
+                         if all(reason not in other["reasons"] for other in siblings)]
+    return {"by_version": sorted(versions.values(), key=lambda entry: (entry["source"], entry["firmware"])),
+            "format_change_suspects": sorted(suspects, key=lambda row: (row["source"], row["firmware"], row["reason"]))}
+
+
 def quality_report(connection, data_dir: Path) -> dict:
     counts = {}
     for table in ("parsed_events", "clean_events", "unparsed", "fact_print_job", "agg_status_hourly", "dim_printer"):
@@ -151,6 +189,7 @@ def quality_report(connection, data_dir: Path) -> dict:
           FROM manifest GROUP BY source ORDER BY source
         """),
         "unparsed_reasons": records(connection, "SELECT source, reason, count(*) AS lines FROM unparsed GROUP BY source, reason ORDER BY source, reason"),
+        "rejects_by_firmware": rejects_by_firmware(connection),
         "lateness_seconds": records(connection, """
           SELECT source, quantile_cont(epoch(received_at - event_ts), .5) AS p50,
                  quantile_cont(epoch(received_at - event_ts), .95) AS p95,

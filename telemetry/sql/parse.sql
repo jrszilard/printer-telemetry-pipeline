@@ -115,6 +115,24 @@ SELECT path, line_number, (SELECT parser_version FROM settings)::INTEGER AS pars
                                  CASE WHEN kind = 'status' THEN coalesce(state, '') ELSE '' END))) AS dedupe_key
 FROM extracted WHERE reason IS NULL;
 
+-- Rejected lines keep their device and firmware so reject rates can be tracked by version. A line too
+-- broken to read borrows both from its neighbours in the same upload (one upload comes from one printer).
 CREATE OR REPLACE TEMP TABLE batch_unparsed AS
+WITH located AS (
+ SELECT *,
+  coalesce(last_value(nullif(device_id, '') IGNORE NULLS) OVER earlier,
+           first_value(nullif(device_id, '') IGNORE NULLS) OVER later) AS neighbour_device,
+  coalesce(last_value(nullif(firmware, '') IGNORE NULLS) OVER earlier,
+           first_value(nullif(firmware, '') IGNORE NULLS) OVER later) AS neighbour_firmware
+ FROM extracted
+ WINDOW earlier AS (PARTITION BY path ORDER BY line_number ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
+        later AS (PARTITION BY path ORDER BY line_number ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING)
+)
 SELECT path, line_number, (SELECT parser_version FROM settings)::INTEGER AS parser_version,
-       source, received_at, line, reason FROM extracted WHERE reason IS NOT NULL;
+       source, received_at, line, reason,
+       coalesce(nullif(device_id, ''), neighbour_device) AS device_id,
+       coalesce(nullif(firmware, ''), neighbour_firmware) AS firmware,
+       CASE WHEN nullif(firmware, '') IS NOT NULL THEN CASE WHEN source = 'genA' THEN 'header' ELSE 'line' END
+            WHEN neighbour_firmware IS NOT NULL THEN 'same_upload'
+            ELSE 'unknown' END AS firmware_source
+FROM located WHERE reason IS NOT NULL;

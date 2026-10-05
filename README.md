@@ -87,7 +87,7 @@ PY
 | `data/demo/unparsed/events.parquet` | Rejected lines with reasons; nothing silently disappears |
 | `data/demo/modeled/` | `fact_print_job`, `agg_status_hourly`, `dim_printer` |
 | `data/demo/state.duckdb` | Manifest, local transactional state, model tables, `failure_rates` view |
-| `data/demo/quality.json` | Coverage, duplicate counts, lateness, outcomes, sizes, run statistics |
+| `data/demo/quality.json` | Coverage, duplicate counts, lateness, outcomes, rejects by firmware, sizes, run statistics |
 | `data/demo/truth/` | Simulator-only ground truth; never used to build the models |
 
 ## Real printer: collection only
@@ -132,7 +132,7 @@ run and ground-truth job counts, and demonstrates parser repair at the smallest 
 completed scales; incomplete directories are never overwritten. Detailed JSON and EXPLAIN plans stay
 under `data/bench/`. Timings are local measurements, not predictions of BigQuery performance.
 
-See [design and limitations](docs/design.md), [measured results](docs/results.md), and
+See [log formats](docs/log-formats.md), [design and limitations](docs/design.md), [measured results](docs/results.md), and
 [publication safety](SECURITY.md).
 
 **Safety:** runtime data/exports, dotenv variants, credential/key files, local agent settings, and
